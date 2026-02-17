@@ -34,6 +34,7 @@ export const createUser = mutation({
     shopId: v.optional(v.id("shops")),
     shopCode: v.optional(v.string()),
     name: v.string(),
+    allowedTabs: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     await verifyRole(ctx, args.callerId, ["admin"]);
@@ -68,6 +69,7 @@ export const updateUser = mutation({
     role: v.optional(v.union(v.literal("admin"), v.literal("manager"), v.literal("sales"))),
     shopId: v.optional(v.id("shops")),
     shopCode: v.optional(v.string()),
+    allowedTabs: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     await verifyRole(ctx, args.callerId, ["admin"]);
@@ -80,6 +82,7 @@ export const updateUser = mutation({
     if (updates.role !== undefined) patch.role = updates.role;
     if (updates.shopId !== undefined) patch.shopId = updates.shopId;
     if (updates.shopCode !== undefined) patch.shopCode = updates.shopCode;
+    if (updates.allowedTabs !== undefined) patch.allowedTabs = updates.allowedTabs;
 
     await ctx.db.patch(userId, patch);
   },

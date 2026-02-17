@@ -18,6 +18,7 @@ export default defineSchema({
     shopCode: v.optional(v.string()),
     name: v.string(),
     mustChangeCredentials: v.boolean(),
+    allowedTabs: v.optional(v.array(v.string())),
   }).index("by_email", ["email"]),
 
   products: defineTable({

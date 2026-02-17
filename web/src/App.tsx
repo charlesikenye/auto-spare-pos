@@ -23,12 +23,12 @@ function App() {
           <main className="flex-1">
             <Routes>
               <Route path="/login" element={!user ? <Login onLogin={setUser} /> : <Navigate to="/" />} />
-              <Route path="/" element={user ? <Dashboard user={user} /> : <Navigate to="/login" />} />
-              <Route path="/inventory" element={user ? <Inventory user={user} /> : <Navigate to="/login" />} />
-              <Route path="/sales" element={user ? <Sales user={user} /> : <Navigate to="/login" />} />
-              <Route path="/reports" element={user ? <Reports user={user} /> : <Navigate to="/login" />} />
-              <Route path="/admin" element={user?.role === 'admin' ? <AdminUsers user={user} /> : <Navigate to="/" />} />
-              <Route path="/transfers" element={user ? <Transfers user={user} /> : <Navigate to="/login" />} />
+              <Route path="/" element={user && (!user.allowedTabs ? true : user.allowedTabs.includes('dashboard')) ? <Dashboard user={user} /> : user ? <Navigate to="/sales" /> : <Navigate to="/login" />} />
+              <Route path="/inventory" element={user && (!user.allowedTabs ? ['admin', 'manager'].includes(user.role) : user.allowedTabs.includes('inventory')) ? <Inventory user={user} /> : <Navigate to="/" />} />
+              <Route path="/sales" element={user && (!user.allowedTabs ? true : user.allowedTabs.includes('sales')) ? <Sales user={user} /> : <Navigate to="/" />} />
+              <Route path="/reports" element={user && (!user.allowedTabs ? ['admin', 'manager'].includes(user.role) : user.allowedTabs.includes('reports')) ? <Reports user={user} /> : <Navigate to="/" />} />
+              <Route path="/admin" element={user && (!user.allowedTabs ? user.role === 'admin' : user.allowedTabs.includes('admin')) ? <AdminUsers user={user} /> : <Navigate to="/" />} />
+              <Route path="/transfers" element={user && (!user.allowedTabs ? ['admin', 'manager'].includes(user.role) : user.allowedTabs.includes('transfers')) ? <Transfers user={user} /> : <Navigate to="/" />} />
             </Routes>
           </main>
         </div>

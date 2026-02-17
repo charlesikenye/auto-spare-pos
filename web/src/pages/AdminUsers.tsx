@@ -17,7 +17,16 @@ export default function AdminUsers({ user }: { user: any }) {
     password: "password123",
     role: "sales" as "admin" | "manager" | "sales",
     shopId: "" as any,
+    allowedTabs: ["dashboard", "sales"] as string[],
   });
+
+  const ALL_TABS = [
+    { id: "dashboard", label: "Dashboard" },
+    { id: "sales", label: "Sales (POS)" },
+    { id: "inventory", label: "Inventory" },
+    { id: "transfers", label: "Transfers" },
+    { id: "reports", label: "Reports" },
+  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,12 +40,13 @@ export default function AdminUsers({ user }: { user: any }) {
         role: formData.role,
         shopId: formData.role !== 'admin' ? formData.shopId : undefined,
         shopCode: formData.role !== 'admin' ? selectedShop?.code : undefined,
+        allowedTabs: formData.role === 'admin' ? ALL_TABS.map(t => t.id).concat(['admin']) : formData.allowedTabs,
       });
       setIsModalOpen(false);
-      setFormData({ name: "", email: "", password: "password123", role: "sales", shopId: "" });
-    } catch (error) {
+      setFormData({ name: "", email: "", password: "password123", role: "sales", shopId: "", allowedTabs: ["dashboard", "sales"] });
+    } catch (error: any) {
       console.error("Error creating user:", error);
-      alert("Failed to create user. Email may already be in use.");
+      alert("Failed to create user: " + error.message);
     }
   };
 
@@ -61,12 +71,13 @@ export default function AdminUsers({ user }: { user: any }) {
         role: editData.role,
         shopId: editData.role !== 'admin' ? editData.shopId : undefined,
         shopCode: editData.role !== 'admin' ? selectedShop?.code : undefined,
+        allowedTabs: editData.role === 'admin' ? ALL_TABS.map(t => t.id).concat(['admin']) : editData.allowedTabs,
       });
       setIsEditModalOpen(false);
       setEditData(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating user:", error);
-      alert("Failed to update user.");
+      alert("Failed to update user: " + error.message);
     }
   };
 
@@ -206,20 +217,43 @@ export default function AdminUsers({ user }: { user: any }) {
                 </select>
               </div>
               {formData.role !== 'admin' && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Assign to Shop</label>
-                  <select
-                    required
-                    value={formData.shopId}
-                    onChange={(e) => setFormData({ ...formData, shopId: e.target.value as any })}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  >
-                    <option value="">Select a Shop</option>
-                    {shops?.map(s => (
-                      <option key={s._id} value={s._id}>{s.name} ({s.code})</option>
-                    ))}
-                  </select>
-                </div>
+                <>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Assign to Shop</label>
+                    <select
+                      required
+                      value={formData.shopId}
+                      onChange={(e) => setFormData({ ...formData, shopId: e.target.value as any })}
+                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                      <option value="">Select a Shop</option>
+                      {shops?.map(s => (
+                        <option key={s._id} value={s._id}>{s.name} ({s.code})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-gray-700">Screen Access (Permissions)</label>
+                    <div className="grid grid-cols-2 gap-2 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      {ALL_TABS.map(tab => (
+                        <label key={tab.id} className="flex items-center space-x-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.allowedTabs.includes(tab.id)}
+                            onChange={(e) => {
+                              const newTabs = e.target.checked
+                                ? [...formData.allowedTabs, tab.id]
+                                : formData.allowedTabs.filter(t => t !== tab.id);
+                              setFormData({ ...formData, allowedTabs: newTabs });
+                            }}
+                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm font-medium text-gray-700">{tab.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
               )}
               <div className="pt-4 flex space-x-3">
                 <button
@@ -238,55 +272,82 @@ export default function AdminUsers({ user }: { user: any }) {
               </div>
             </form>
           </div>
-        </div>
-      )}
+        </div >
+      )
+      }
 
       {/* Edit User Modal */}
-      {isEditModalOpen && editData && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="p-6 border-b flex justify-between items-center bg-gray-50">
-              <h2 className="text-xl font-bold text-gray-900">Edit User</h2>
-              <button onClick={() => { setIsEditModalOpen(false); setEditData(null); }} className="text-gray-400 hover:text-gray-600">
-                <X size={24} />
-              </button>
-            </div>
-            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Full Name</label>
-                <input type="text" required value={editData.name} onChange={(e) => setEditData({ ...editData, name: e.target.value })} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+      {
+        isEditModalOpen && editData && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+              <div className="p-6 border-b flex justify-between items-center bg-gray-50">
+                <h2 className="text-xl font-bold text-gray-900">Edit User</h2>
+                <button onClick={() => { setIsEditModalOpen(false); setEditData(null); }} className="text-gray-400 hover:text-gray-600">
+                  <X size={24} />
+                </button>
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Email (read-only)</label>
-                <input type="email" value={editData.email} disabled className="w-full px-4 py-2 border rounded-lg bg-gray-50 text-gray-400" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Role</label>
-                <select value={editData.role} onChange={(e) => setEditData({ ...editData, role: e.target.value })} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                  <option value="sales">Sales Person</option>
-                  <option value="manager">Shop Manager</option>
-                  <option value="admin">System Admin</option>
-                </select>
-              </div>
-              {editData.role !== 'admin' && (
+              <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Assign to Shop</label>
-                  <select required value={editData.shopId || ''} onChange={(e) => setEditData({ ...editData, shopId: e.target.value })} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                    <option value="">Select a Shop</option>
-                    {shops?.map(s => (
-                      <option key={s._id} value={s._id}>{s.name} ({s.code})</option>
-                    ))}
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Full Name</label>
+                  <input type="text" required value={editData.name} onChange={(e) => setEditData({ ...editData, name: e.target.value })} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Email (read-only)</label>
+                  <input type="email" value={editData.email} disabled className="w-full px-4 py-2 border rounded-lg bg-gray-50 text-gray-400" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Role</label>
+                  <select value={editData.role} onChange={(e) => setEditData({ ...editData, role: e.target.value })} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    <option value="sales">Sales Person</option>
+                    <option value="manager">Shop Manager</option>
+                    <option value="admin">System Admin</option>
                   </select>
                 </div>
-              )}
-              <div className="pt-4 flex space-x-3">
-                <button type="button" onClick={() => { setIsEditModalOpen(false); setEditData(null); }} className="flex-1 px-4 py-3 border rounded-xl font-semibold text-gray-700 hover:bg-gray-50 transition-colors">Cancel</button>
-                <button type="submit" className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">Update User</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
+                {editData.role !== 'admin' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Assign to Shop</label>
+                      <select required value={editData.shopId || ''} onChange={(e) => setEditData({ ...editData, shopId: e.target.value })} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                        <option value="">Select a Shop</option>
+                        {shops?.map(s => (
+                          <option key={s._id} value={s._id}>{s.name} ({s.code})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-semibold text-gray-700">Screen Access (Permissions)</label>
+                      <div className="grid grid-cols-2 gap-2 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                        {ALL_TABS.map(tab => (
+                          <label key={tab.id} className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={(editData.allowedTabs || []).includes(tab.id)}
+                              onChange={(e) => {
+                                const currentTabs = editData.allowedTabs || [];
+                                const newTabs = e.target.checked
+                                  ? [...currentTabs, tab.id]
+                                  : currentTabs.filter((t: any) => t !== tab.id);
+                                setEditData({ ...editData, allowedTabs: newTabs });
+                              }}
+                              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                            />
+                            <span className="text-sm font-medium text-gray-700">{tab.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+                <div className="pt-4 flex space-x-3">
+                  <button type="button" onClick={() => { setIsEditModalOpen(false); setEditData(null); }} className="flex-1 px-4 py-3 border rounded-xl font-semibold text-gray-700 hover:bg-gray-50 transition-colors">Cancel</button>
+                  <button type="submit" className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">Update User</button>
+                </div>
+              </form>
+            </div >
+          </div >
+        )
+      }
+    </div >
   );
 }

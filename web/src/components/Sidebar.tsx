@@ -13,7 +13,15 @@ export default function Sidebar({ user, onLogout }: { user: any, onLogout: () =>
   ];
 
   // Filter items that current user has access to
-  menuItems = menuItems.filter(item => !item.roles || item.roles.includes(user.role));
+  menuItems = menuItems.filter(item => {
+    // Fallback for legacy users who don't have allowedTabs yet
+    if (!user.allowedTabs) {
+      return !item.roles || item.roles.includes(user.role);
+    }
+
+    const tabId = item.path.substring(1) || 'dashboard';
+    return user.allowedTabs.includes(tabId);
+  });
 
   if (user.role === 'admin') {
     menuItems.push({ icon: Users, label: 'Users', path: '/admin' } as any);
