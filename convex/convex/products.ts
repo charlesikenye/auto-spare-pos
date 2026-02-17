@@ -125,6 +125,34 @@ export const updateProduct = mutation({
   },
 });
 
+export const restockProduct = mutation({
+  args: {
+    callerId: v.id("users"),
+    productId: v.id("products"),
+    quantity: v.number(),
+    cost: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await verifyRole(ctx, args.callerId, ["admin", "manager"]);
+    const product = await ctx.db.get(args.productId);
+    if (!product) throw new Error("Product not found");
+
+    const newStock = product.stock + args.quantity;
+    const updates: any = { stock: newStock };
+    if (args.cost) updates.cost = args.cost;
+
+    await ctx.db.patch(args.productId, updates);
+
+    await ctx.db.insert("stockMovements", {
+      productId: args.productId,
+      shopId: product.shopId!,
+      type: "purchase",
+      quantity: args.quantity,
+      timestamp: Date.now(),
+      notes: `Manual Restock. Cost: ${args.cost || product.cost}`,
+    });
+  },
+});
 export const bulkAssignShopIds = mutation({
   args: {},
   handler: async (ctx) => {

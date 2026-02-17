@@ -10,6 +10,7 @@
 
 import type * as diagnostics from "../diagnostics.js";
 import type * as files from "../files.js";
+import type * as migrations from "../migrations.js";
 import type * as products from "../products.js";
 import type * as sales from "../sales.js";
 import type * as seed from "../seed.js";
@@ -25,6 +26,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   diagnostics: typeof diagnostics;
   files: typeof files;
+  migrations: typeof migrations;
   products: typeof products;
   sales: typeof sales;
   seed: typeof seed;

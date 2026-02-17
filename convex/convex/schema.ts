@@ -73,7 +73,7 @@ export default defineSchema({
   stockMovements: defineTable({
     productId: v.id("products"),
     shopId: v.id("shops"),
-    type: v.union(v.literal("sale"), v.literal("restock"), v.literal("adjustment")),
+    type: v.union(v.literal("sale"), v.literal("restock"), v.literal("adjustment"), v.literal("purchase")),
     quantity: v.number(),
     timestamp: v.number(),
     note: v.optional(v.string()),

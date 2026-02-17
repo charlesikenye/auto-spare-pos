@@ -16,12 +16,17 @@ export default function Inventory({ user }: { user: any }) {
   const updateProduct = useMutation(api.products.updateProduct);
   const importProducts = useMutation(api.products.importProducts);
   const createTransfer = useMutation(api.transfers.createRequest);
+  const restockProduct = useMutation(api.products.restockProduct);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [selectedProductForTransfer, setSelectedProductForTransfer] = useState<any>(null);
+  const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
+  const [selectedProductForRestock, setSelectedProductForRestock] = useState<any>(null);
+  const [restockQty, setRestockQty] = useState(1);
+  const [restockCost, setRestockCost] = useState("");
   const [transferQuantity, setTransferQuantity] = useState(1);
   const [isImporting, setIsImporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -139,6 +144,27 @@ export default function Inventory({ user }: { user: any }) {
     } catch (error: any) {
       console.error("Transfer error:", error);
       alert("Failed to record transfer: " + error.message);
+    }
+  };
+
+  const handleRestockSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProductForRestock) return;
+    try {
+      await restockProduct({
+        callerId: user._id,
+        productId: selectedProductForRestock._id,
+        quantity: restockQty,
+        cost: restockCost ? Number(restockCost) : undefined,
+      });
+      setIsRestockModalOpen(false);
+      setSelectedProductForRestock(null);
+      setRestockQty(1);
+      setRestockCost("");
+      alert("Stock updated successfully!");
+    } catch (error: any) {
+      console.error("Restock error:", error);
+      alert("Failed to restock: " + error.message);
     }
   };
 
@@ -370,6 +396,20 @@ export default function Inventory({ user }: { user: any }) {
                           Check Region
                         </button>
                       )}
+
+                      {['manager', 'admin'].includes(user.role) && (
+                        <button
+                          onClick={() => {
+                            setSelectedProductForRestock(product);
+                            setRestockCost(product.cost?.toString() || "");
+                            setIsRestockModalOpen(true);
+                          }}
+                          className="text-purple-600 hover:text-purple-800 text-xs font-semibold px-2 py-1 bg-purple-50 rounded"
+                          title="Add new stock"
+                        >
+                          RESTOCK
+                        </button>
+                      )}
                       <button
                         onClick={() => navigate('/sales', { state: { sellProduct: product } })}
                         className="text-green-600 hover:text-green-800 text-xs font-bold px-2 py-1 bg-green-50 rounded"
@@ -415,57 +455,130 @@ export default function Inventory({ user }: { user: any }) {
                 </div>
               </div>
 
-              {/* Tier 1: Intra-Region Broadcast */}
+              {/* TIER 1: MY REGION (Visible to All) */}
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-black text-sm text-gray-400 flex items-center">
-                    <ArrowRight size={16} className="mr-2" /> TIER 1: REGIONAL BROADCAST (QUICK)
-                  </h3>
-                  <button
-                    onClick={() => handleTransferRequest(undefined, "intra_region")}
-                    className="bg-orange-600 text-white px-6 py-2 rounded-xl text-sm font-black hover:bg-orange-700 shadow-lg shadow-orange-100 transition-all"
-                  >
-                    BROADCAST TO {targetShop?.region?.toUpperCase() || "REGION"}
-                  </button>
-                </div>
-                <p className="text-xs text-gray-500 italic">This sends a request to all shops in {targetShop?.region}. The first shop to accept will fulfill your order.</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {regionalShops?.map(s => (
-                    <div key={s._id} className="text-[10px] font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded border border-gray-100">
-                      {s.name} ({s.code})
+                <h3 className="font-black text-sm text-gray-400 flex items-center uppercase">
+                  <ArrowRight size={16} className="mr-2" /> Tier 1: {targetShop?.region} Shops
+                </h3>
+
+                {/* 1A: Specific Shops (Strict Filter: Same Region ONLY) */}
+                <div className="grid grid-cols-1 gap-3">
+                  {regionalShops?.filter(s => s.region?.toLowerCase() === targetShop?.region?.toLowerCase()).map(s => (
+                    <div key={s._id} className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-xl hover:border-blue-200 transition-all group">
+                      <div>
+                        <div className="font-bold text-gray-900">{s.name}</div>
+                        <div className="text-xs text-gray-400 font-mono">{s.code}</div>
+                      </div>
+                      <button
+                        onClick={() => handleTransferRequest(s, "intra_region")}
+                        className="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors"
+                      >
+                        REQUEST
+                      </button>
                     </div>
                   ))}
+                  {regionalShops?.filter(s => s.region?.toLowerCase() === targetShop?.region?.toLowerCase()).length === 0 && (
+                    <p className="text-sm text-gray-500 italic">No other shops found in this region.</p>
+                  )}
                 </div>
+
+                {/* 1B: Broadcast (Manager Only) */}
+                {['manager', 'admin'].includes(user.role) ? (
+                  <div className="pt-4 mt-4 border-t border-dashed">
+                    <button
+                      onClick={() => handleTransferRequest(undefined, "intra_region")}
+                      className="w-full bg-orange-50 text-orange-600 border border-orange-100 px-6 py-3 rounded-xl text-sm font-black hover:bg-orange-100 transition-all flex items-center justify-center space-x-2"
+                    >
+                      <span>📡 BROADCAST TO ENTIRE REGION</span>
+                    </button>
+                    <p className="text-[10px] text-center text-gray-400 mt-2">Alerts all shops in {targetShop?.region}. First to accept fulfills.</p>
+                  </div>
+                ) : (
+                  <div className="pt-4 mt-4 border-t border-dashed text-center">
+                    <p className="text-xs text-gray-400 font-medium bg-gray-50 p-2 rounded-lg">
+                      Need to Broadcast? Ask your Manager.
+                    </p>
+                  </div>
+                )}
               </div>
 
-              {/* Tier 2: Inter-Region (Manager Only) */}
-              {(user.role === 'manager' || user.role === 'admin') && (
-                <div className="space-y-4 pt-4 border-t border-dashed">
-                  <h3 className="font-black text-sm text-gray-400 flex items-center">
-                    <ArrowRight size={16} className="mr-2" /> TIER 2: INTER-REGION (GLOBAL SEARCH)
-                  </h3>
-                  <div className="space-y-2">
-                    {otherRegionShops?.map(s => (
-                      <div key={s._id} className="flex items-center justify-between p-4 bg-white border-2 border-gray-50 rounded-2xl hover:border-blue-200 transition-all group">
-                        <div>
-                          <div className="font-bold text-gray-900">{s.name}</div>
-                          <div className="text-xs text-gray-400 font-bold uppercase">{s.region} • {s.location}</div>
-                        </div>
-                        <button
-                          onClick={() => handleTransferRequest(s, "inter_region")}
-                          className="bg-black text-white px-4 py-2 rounded-lg text-xs font-black opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          REQUEST FROM THIS SHOP
-                        </button>
-                      </div>
-                    ))}
+              {/* TIER 2: GLOBAL SEARCH (Manager Only Gatekeeper) */}
+              <div className="space-y-4 pt-6 border-t-4 border-gray-50">
+                <h3 className="font-black text-sm text-gray-400 flex items-center uppercase">
+                  <ArrowRight size={16} className="mr-2" /> Tier 2: Global Search (Inter-Region)
+                </h3>
+
+                {/* VISIBILITY CONTROL */}
+                {!['manager', 'admin'].includes(user.role) ? (
+                  // Sales View: BLIND + WhatsApp Escalation
+                  <div className="bg-gray-50 p-6 rounded-xl text-center space-y-4 border border-gray-100">
+                    <div className="text-2xl">🔒</div>
+                    <div>
+                      <h4 className="font-bold text-gray-900">Global Search Locked</h4>
+                      <p className="text-sm text-gray-500">Only Managers can unlock Global Search.</p>
+                    </div>
+                    <a
+                      href={`https://wa.me/?text=Hi%20Manager,%20I%20have%20a%20customer%20for%20${encodeURIComponent(selectedProductForTransfer.name)}.%20We%20are%20out%20of%20stock.%20Please%20check%20Global%20Stock%20or%20Broadcast.%20-%20${user.name}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center space-x-2 bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-xl text-sm font-bold transition-colors shadow-lg shadow-green-100"
+                    >
+                      <span>WhatsApp Manager Request 🟢</span>
+                    </a>
                   </div>
-                  <p className="text-[10px] text-red-500 font-bold bg-red-50 p-2 rounded-lg border border-red-100">
-                    ⚠ NOTE: Inter-region transfers require customer payment proof and manager approval before dispatch.
-                  </p>
-                </div>
-              )}
+                ) : (
+                  // Manager View: UNLOCKABLE
+                  <GlobalSearchUnlock
+                    otherRegionShops={otherRegionShops || []}
+                    onRequest={(s) => handleTransferRequest(s, "inter_region")}
+                  />
+                )}
+              </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Restock Modal */}
+      {isRestockModalOpen && selectedProductForRestock && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="p-6 border-b flex justify-between items-center bg-purple-50">
+              <h2 className="text-xl font-bold text-purple-900">Restock Product</h2>
+              <button onClick={() => setIsRestockModalOpen(false)} className="text-purple-400 hover:text-purple-600">
+                <X size={24} />
+              </button>
+            </div>
+            <form onSubmit={handleRestockSubmit} className="p-6 space-y-4">
+              <div>
+                <h3 className="font-bold text-gray-900">{selectedProductForRestock.name}</h3>
+                <p className="text-xs text-gray-500 font-mono">{selectedProductForRestock.sku}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">New Quantity (Purchase)</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={restockQty}
+                  onChange={(e) => setRestockQty(parseInt(e.target.value))}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none font-bold text-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Cost Price (Optional Update)</label>
+                <input
+                  type="number"
+                  value={restockCost}
+                  onChange={(e) => setRestockCost(e.target.value)}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
+                  placeholder={selectedProductForRestock.cost}
+                />
+              </div>
+              <button type="submit" className="w-full py-3 bg-purple-600 text-white rounded-xl font-bold shadow-lg shadow-purple-200 hover:bg-purple-700 transition-colors">
+                CONFIRM RESTOCK
+              </button>
+            </form>
           </div>
         </div>
       )}
@@ -514,6 +627,59 @@ export default function Inventory({ user }: { user: any }) {
             </form>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+
+function GlobalSearchUnlock({ otherRegionShops, onRequest }: { otherRegionShops: any[], onRequest: (shop: any) => void }) {
+  const [isUnlocked, setIsUnlocked] = useState(false);
+
+  if (!isUnlocked) {
+    return (
+      <div className="bg-gray-900 text-white p-6 rounded-xl flex flex-col items-center text-center space-y-3">
+        <div className="p-3 bg-white/10 rounded-full">
+          <Search size={24} className="text-blue-400" />
+        </div>
+        <div>
+          <h4 className="font-bold">Global Search Locked</h4>
+          <p className="text-sm text-gray-400">Reveal shops in other regions?</p>
+        </div>
+        <button
+          onClick={() => setIsUnlocked(true)}
+          className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-bold transition-colors w-full"
+        >
+          UNLOCK GLOBAL LIST
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+      <div className="flex justify-between items-center">
+        <p className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded">GLOBAL SEARCH ACTIVE</p>
+        <button onClick={() => setIsUnlocked(false)} className="text-xs text-gray-400 hover:text-gray-600">Close</button>
+      </div>
+
+      {otherRegionShops?.map(s => (
+        <div key={s._id} className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-xl hover:border-blue-500 transition-all shadow-sm">
+          <div>
+            <div className="font-bold text-gray-900">{s.name}</div>
+            <div className="text-xs text-gray-500 uppercase tracking-wide">{s.region}  {s.location}</div>
+          </div>
+          <button
+            onClick={() => onRequest(s)}
+            className="bg-black text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-gray-800 transition-transform active:scale-95"
+          >
+            REQUEST STOCK
+          </button>
+        </div>
+      ))}
+
+      {otherRegionShops?.length === 0 && (
+        <p className="text-center text-gray-500 py-4 italic">No shops found in other regions.</p>
       )}
     </div>
   );
