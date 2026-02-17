@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
+import { useMutation } from "convex/react";
+import { api } from "../../../convex/convex/_generated/api";
 
 export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
   const [email, setEmail] = useState('');
@@ -8,14 +8,18 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
   const [error, setError] = useState('');
 
   // Note: Using query for demo simplicity, mutation is better for production
-  const user = useQuery(api.users.login, { email, password });
+  const login = useMutation(api.users.authenticate);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (user) {
-      onLogin(user);
-    } else {
-      setError('Invalid email or password');
+    setError('');
+    try {
+      const userResult = await login({ email, password });
+      if (userResult) {
+        onLogin(userResult);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Invalid email or password');
     }
   };
 
@@ -26,7 +30,7 @@ export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
           <h1 className="text-3xl font-bold text-gray-900">Welcome Back</h1>
           <p className="text-gray-500 mt-2">Sign in to manage your shop</p>
         </div>
-        
+
         {error && (
           <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-lg text-sm font-medium">
             {error}

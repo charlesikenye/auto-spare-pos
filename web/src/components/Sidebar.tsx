@@ -1,18 +1,22 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Box, ShoppingCart, BarChart3, Users, LogOut } from 'lucide-react';
+import { LayoutDashboard, Box, ShoppingCart, BarChart3, Users, LogOut, Truck } from 'lucide-react';
 
 export default function Sidebar({ user, onLogout }: { user: any, onLogout: () => void }) {
   const location = useLocation();
-  
-  const menuItems = [
+
+  let menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-    { icon: Box, label: 'Inventory', path: '/inventory' },
-    { icon: ShoppingCart, label: 'Sales', path: '/sales' },
-    { icon: BarChart3, label: 'Reports', path: '/reports' },
+    { icon: Box, label: 'Inventory', path: '/inventory', roles: ['admin', 'manager'] },
+    { icon: ShoppingCart, label: 'Sales', path: '/sales', roles: ['admin', 'manager', 'sales'] },
+    { icon: Truck, label: 'Transfers', path: '/transfers', roles: ['admin', 'manager'] },
+    { icon: BarChart3, label: 'Reports', path: '/reports', roles: ['admin', 'manager'] },
   ];
 
+  // Filter items that current user has access to
+  menuItems = menuItems.filter(item => !item.roles || item.roles.includes(user.role));
+
   if (user.role === 'admin') {
-    menuItems.push({ icon: Users, label: 'Users', path: '/admin' });
+    menuItems.push({ icon: Users, label: 'Users', path: '/admin' } as any);
   }
 
   return (
@@ -26,9 +30,8 @@ export default function Sidebar({ user, onLogout }: { user: any, onLogout: () =>
           <Link
             key={item.path}
             to={item.path}
-            className={`flex items-center space-x-3 p-3 rounded-lg transition-colors ${
-              location.pathname === item.path ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'
-            }`}
+            className={`flex items-center space-x-3 p-3 rounded-lg transition-colors ${location.pathname === item.path ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'
+              }`}
           >
             <item.icon size={20} />
             <span>{item.label}</span>

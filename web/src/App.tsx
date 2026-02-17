@@ -7,9 +7,10 @@ import Inventory from './pages/Inventory';
 import Sales from './pages/Sales';
 import Reports from './pages/Reports';
 import AdminUsers from './pages/AdminUsers';
+import Transfers from './pages/Transfers';
 import Sidebar from './components/Sidebar';
 
-const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL || "https://cool-giraffe-985.convex.cloud");
+const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL || "https://wandering-hyena-904.convex.cloud");
 
 function App() {
   const [user, setUser] = useState<any>(null);
@@ -27,6 +28,7 @@ function App() {
               <Route path="/sales" element={user ? <Sales user={user} /> : <Navigate to="/login" />} />
               <Route path="/reports" element={user ? <Reports user={user} /> : <Navigate to="/login" />} />
               <Route path="/admin" element={user?.role === 'admin' ? <AdminUsers user={user} /> : <Navigate to="/" />} />
+              <Route path="/transfers" element={user ? <Transfers user={user} /> : <Navigate to="/login" />} />
             </Routes>
           </main>
         </div>
