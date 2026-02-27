@@ -24,8 +24,7 @@ export const createRequest = mutation({
             region: args.region,
             quantity: args.quantity,
             type: args.type,
-            // Admin bypasses the payment lock
-            status: (args.type === "inter_region" && !isAdmin) ? "awaiting_payment" : "pending",
+            status: "pending", // Direct P2P request, no manager or payment required initially
             requestedBy: args.requestedBy,
             timestamp: Date.now(),
         });
@@ -182,16 +181,12 @@ export const dispatchTransfer = mutation({
         fromShopId: v.optional(v.id("shops")) // Required for regional 'claiming'
     },
     handler: async (ctx, args) => {
-        const user = await verifyRole(ctx, args.callerId, ["manager", "admin"]);
-        const isAdmin = user.role === "admin";
+        const user = await verifyRole(ctx, args.callerId, ["sales", "manager", "admin"]);
         const transfer = await ctx.db.get(args.transferId);
         if (!transfer) throw new Error("Transfer not found");
         if (transfer.status !== "pending") throw new Error("Transfer is not in a dispatchable state (must be 'pending').");
 
-        // Enforce payment check for inter-region (Admins bypass)
-        if (transfer.type === "inter_region" && !transfer.paymentProofUrl && !isAdmin) {
-            throw new Error("Inter-region transfers require customer payment proof before dispatch.");
-        }
+        // Removed payment check for inter-region based on new simplified workflow
 
         const sourceShopId = transfer.fromShopId || args.fromShopId;
         if (!sourceShopId) throw new Error("Source shop must be specified for dispatch.");
@@ -234,30 +229,55 @@ export const receiveTransfer = mutation({
         callerId: v.id("users"),
         transferId: v.id("transfers"),
         receivedBy: v.id("users"),
-        photoUrl: v.string()
+        photoUrl: v.optional(v.string())
     },
     handler: async (ctx, args) => {
         await verifyRole(ctx, args.callerId, ["sales", "manager", "admin"]);
         const transfer = await ctx.db.get(args.transferId);
         if (!transfer) throw new Error("Transfer not found");
         if (transfer.status !== "in_transit") throw new Error("Transfer is not in transit");
-        if (!args.photoUrl) throw new Error("A photo of the delivery note is required.");
 
         const sourceProduct = await ctx.db.get(transfer.productId);
         if (!sourceProduct) throw new Error("Product metadata not found");
 
         // Find the corresponding product in the destination shop
-        const destProduct = await ctx.db
+        let destProduct = await ctx.db
             .query("products")
             .withIndex("by_sku_shop", (q) =>
                 q.eq("sku", sourceProduct.sku).eq("shopId", transfer.toShopId)
             )
             .first();
 
-        if (!destProduct) throw new Error("Product not found in receiving shop.");
-
-        // 1. Add to destination
-        await ctx.db.patch(destProduct._id, { stock: destProduct.stock + transfer.quantity });
+        // If the product doesn't exist in the receiving shop, create it
+        if (!destProduct) {
+            const newProductId = await ctx.db.insert("products", {
+                sku: sourceProduct.sku,
+                name: sourceProduct.name,
+                barcode: sourceProduct.barcode,
+                price: sourceProduct.price,
+                cost: sourceProduct.cost,
+                stock: transfer.quantity,
+                supplier: sourceProduct.supplier,
+                description: sourceProduct.description,
+                category: sourceProduct.category,
+                ProductGroup: "Unknown", // Can be set via shop map later or updated by the user
+                shopId: transfer.toShopId,
+                measurementUnit: sourceProduct.measurementUnit,
+                taxPercent: sourceProduct.taxPercent,
+                reorderPoint: sourceProduct.reorderPoint,
+                isTaxInclusive: sourceProduct.isTaxInclusive,
+                isPriceChangeAllowed: sourceProduct.isPriceChangeAllowed,
+                isService: sourceProduct.isService,
+                isEnabled: sourceProduct.isEnabled,
+                preferredQuantity: sourceProduct.preferredQuantity,
+                warningQuantity: sourceProduct.warningQuantity,
+            });
+            destProduct = await ctx.db.get(newProductId);
+            if (!destProduct) throw new Error("Failed to create product in destination shop.");
+        } else {
+            // 1. Add to destination
+            await ctx.db.patch(destProduct._id, { stock: destProduct.stock + transfer.quantity });
+        }
 
         // 2. Record movement
         await ctx.db.insert("stockMovements", {

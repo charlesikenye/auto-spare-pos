@@ -17,9 +17,12 @@ export default defineSchema({
     shopId: v.optional(v.id("shops")),
     shopCode: v.optional(v.string()),
     name: v.string(),
+    staffId: v.optional(v.string()), // e.g. "JA 111"
+    pin: v.optional(v.string()), // e.g. "1234"
     mustChangeCredentials: v.boolean(),
     allowedTabs: v.optional(v.array(v.string())),
-  }).index("by_email", ["email"]),
+  }).index("by_email", ["email"])
+    .index("by_staff_id", ["staffId"]),
 
   products: defineTable({
     sku: v.string(),
@@ -42,6 +45,7 @@ export default defineSchema({
     isEnabled: v.optional(v.boolean()),
     preferredQuantity: v.optional(v.number()),
     warningQuantity: v.optional(v.number()),
+    imageUrl: v.optional(v.string()),
   }).index("by_shop", ["shopId"])
     .index("by_product_group", ["ProductGroup"])
     .index("by_sku_shop", ["sku", "shopId"]),

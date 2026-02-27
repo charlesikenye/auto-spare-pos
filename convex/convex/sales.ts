@@ -16,9 +16,20 @@ export const createSale = mutation({
     paymentMethod: v.string(),
     mpesaCode: v.optional(v.string()),
     paymentProofUrl: v.optional(v.string()),
+    timestamp: v.optional(v.number()), // For offline sync accuracy
+    pin: v.optional(v.string()), // Secure Clerk PIN check
   },
   handler: async (ctx, args) => {
-    await verifyRole(ctx, args.callerId, ["sales", "manager"]);
+    await verifyRole(ctx, args.callerId, ["sales", "manager", "admin"]);
+
+    // Verify PIN if provided
+    if (args.pin) {
+      const staff = await ctx.db.get(args.userId);
+      if (!staff || staff.pin !== args.pin) {
+        throw new Error("Invalid PIN. Cannot record sale.");
+      }
+    }
+
     // 0. Check for duplicate M-Pesa code if provided
     if (args.mpesaCode) {
       const existing = await ctx.db
@@ -46,14 +57,15 @@ export const createSale = mutation({
         shopId: args.shopId,
         type: "sale",
         quantity: -item.quantity,
-        timestamp: Date.now(),
+        timestamp: args.timestamp || Date.now(),
       });
     }
 
-    // 2. Record sale
+    // 2. Record sale (callerId and pin are only for auth/verification, not stored in DB)
+    const { callerId, pin, ...saleData } = args;
     const saleId = await ctx.db.insert("sales", {
-      ...args,
-      timestamp: Date.now(),
+      ...saleData,
+      timestamp: args.timestamp || Date.now(),
     });
 
     return saleId;

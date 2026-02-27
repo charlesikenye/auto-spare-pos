@@ -94,6 +94,71 @@ export const createProduct = mutation({
   },
 });
 
+// Upsert: creates a new product or, if SKU already exists in that shop,
+// updates price/cost/name and adds any incoming stock instead of duplicating.
+export const upsertProduct = mutation({
+  args: {
+    callerId: v.id("users"),
+    sku: v.string(),
+    name: v.string(),
+    price: v.number(),
+    cost: v.number(),
+    stock: v.number(),
+    category: v.optional(v.string()),
+    description: v.optional(v.string()),
+    shopId: v.id("shops"),
+    shopCode: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await verifyRole(ctx, args.callerId, ["admin", "manager"]);
+
+    const existing = await ctx.db
+      .query("products")
+      .withIndex("by_sku_shop", (q) => q.eq("sku", args.sku).eq("shopId", args.shopId))
+      .first();
+
+    if (existing) {
+      // Product already exists — update metadata and add incoming stock
+      await ctx.db.patch(existing._id, {
+        name: args.name,
+        price: args.price,
+        cost: args.cost,
+        category: args.category,
+        description: args.description,
+        stock: existing.stock + args.stock,
+      });
+
+      // Log a stock movement only if there is stock being added
+      if (args.stock > 0) {
+        await ctx.db.insert("stockMovements", {
+          productId: existing._id,
+          shopId: args.shopId,
+          type: "purchase",
+          quantity: args.stock,
+          timestamp: Date.now(),
+          note: "Stock topped up via product import",
+        });
+      }
+
+      return { action: "updated" as const, productId: existing._id };
+    } else {
+      // Product is new — insert it
+      const productId = await ctx.db.insert("products", {
+        sku: args.sku,
+        name: args.name,
+        price: args.price,
+        cost: args.cost,
+        stock: args.stock,
+        category: args.category,
+        description: args.description,
+        shopId: args.shopId,
+        ProductGroup: args.shopCode,
+      });
+      return { action: "created" as const, productId };
+    }
+  },
+});
+
 export const updateProduct = mutation({
   args: {
     callerId: v.id("users"),
@@ -149,7 +214,7 @@ export const restockProduct = mutation({
       type: "purchase",
       quantity: args.quantity,
       timestamp: Date.now(),
-      notes: `Manual Restock. Cost: ${args.cost || product.cost}`,
+      note: `Manual Restock. Cost: ${args.cost || product.cost}`,
     });
   },
 });
@@ -192,28 +257,56 @@ export const importProducts = mutation({
 
       const cleanBool = (val: any) => val === "1" || val === 1 || val === true;
 
-      await ctx.db.insert("products", {
-        sku: item.SKU || `SKU-${Date.now()}-${count}`,
-        name: item.Name || "Unknown Product",
-        barcode: item.Barcode || undefined,
-        price: cleanNumber(item.Price),
-        cost: cleanNumber(item.Cost),
-        stock: 0, // Default to 0 stock on import
-        supplier: item.Supplier || undefined,
-        description: item.Description || undefined,
-        category: undefined, // Could infer from name or description
-        ProductGroup: shopCode,
-        shopId: shopId,
-        measurementUnit: item.MeasurementUnit || "pcs",
-        taxPercent: cleanNumber(item.TaxPercent),
-        reorderPoint: cleanNumber(item.ReorderPoint),
-        isTaxInclusive: cleanBool(item.IsTaxInclusivePrice),
-        isPriceChangeAllowed: cleanBool(item.IsPriceChangeAllowed),
-        isService: cleanBool(item.IsService),
-        isEnabled: cleanBool(item.IsEnabled),
-        preferredQuantity: cleanNumber(item.PreferredQuantity),
-        warningQuantity: cleanNumber(item.WarningQuantity),
-      });
+      const sku = item.SKU || `SKU-${Date.now()}-${count}`;
+
+      // Duplicate check: look up by SKU + shop before inserting
+      const existing = shopId
+        ? await ctx.db
+          .query("products")
+          .withIndex("by_sku_shop", (q) => q.eq("sku", sku).eq("shopId", shopId))
+          .first()
+        : null;
+
+      if (existing) {
+        // Product already exists — refresh metadata, keep stock unchanged (JSON imports default to 0)
+        await ctx.db.patch(existing._id, {
+          name: item.Name || existing.name,
+          price: cleanNumber(item.Price) || existing.price,
+          cost: cleanNumber(item.Cost) || existing.cost,
+          supplier: item.Supplier || existing.supplier,
+          measurementUnit: item.MeasurementUnit || existing.measurementUnit,
+          taxPercent: cleanNumber(item.TaxPercent) || existing.taxPercent,
+          reorderPoint: cleanNumber(item.ReorderPoint) || existing.reorderPoint,
+          isTaxInclusive: cleanBool(item.IsTaxInclusivePrice),
+          isPriceChangeAllowed: cleanBool(item.IsPriceChangeAllowed),
+          isEnabled: cleanBool(item.IsEnabled),
+          preferredQuantity: cleanNumber(item.PreferredQuantity) || existing.preferredQuantity,
+          warningQuantity: cleanNumber(item.WarningQuantity) || existing.warningQuantity,
+        });
+      } else {
+        await ctx.db.insert("products", {
+          sku,
+          name: item.Name || "Unknown Product",
+          barcode: item.Barcode || undefined,
+          price: cleanNumber(item.Price),
+          cost: cleanNumber(item.Cost),
+          stock: 0, // Default to 0 stock on JSON import
+          supplier: item.Supplier || undefined,
+          description: item.Description || undefined,
+          category: undefined,
+          ProductGroup: shopCode,
+          shopId: shopId,
+          measurementUnit: item.MeasurementUnit || "pcs",
+          taxPercent: cleanNumber(item.TaxPercent),
+          reorderPoint: cleanNumber(item.ReorderPoint),
+          isTaxInclusive: cleanBool(item.IsTaxInclusivePrice),
+          isPriceChangeAllowed: cleanBool(item.IsPriceChangeAllowed),
+          isService: cleanBool(item.IsService),
+          isEnabled: cleanBool(item.IsEnabled),
+          preferredQuantity: cleanNumber(item.PreferredQuantity),
+          warningQuantity: cleanNumber(item.WarningQuantity),
+        });
+      }
       count++;
     }
     return count;
@@ -316,7 +409,7 @@ export const parseFileImport = action({
     let imported = 0;
     for (const product of products) {
       try {
-        await ctx.runMutation(api.products.createProduct, {
+        const result = await ctx.runMutation(api.products.upsertProduct, {
           callerId: args.callerId,
           sku: product.sku,
           name: product.name,
@@ -324,10 +417,12 @@ export const parseFileImport = action({
           cost: product.cost,
           stock: product.stock,
           category: product.category,
+          description: product.description,
           shopId: product.shopId,
           shopCode: args.shopCode,
         });
-        imported++;
+        // Count both creates and updates as successfully processed
+        if (result.action === "updated" || result.action === "created") imported++;
       } catch (err) {
         errors.push(`Failed to import: ${product.name}`);
       }
@@ -341,5 +436,19 @@ export const parseFileImport = action({
     });
 
     return { imported, errors };
+  },
+});
+
+// Saves an auto-sourced or manually provided image URL for a product
+export const setProductImage = mutation({
+  args: {
+    productId: v.id("products"),
+    imageUrl: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const product = await ctx.db.get(args.productId);
+    if (!product) throw new Error("Product not found");
+    await ctx.db.patch(args.productId, { imageUrl: args.imageUrl });
+    return args.productId;
   },
 });

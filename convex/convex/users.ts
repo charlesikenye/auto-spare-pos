@@ -34,6 +34,8 @@ export const createUser = mutation({
     shopId: v.optional(v.id("shops")),
     shopCode: v.optional(v.string()),
     name: v.string(),
+    staffId: v.optional(v.string()),
+    pin: v.optional(v.string()),
     allowedTabs: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
@@ -69,6 +71,8 @@ export const updateUser = mutation({
     role: v.optional(v.union(v.literal("admin"), v.literal("manager"), v.literal("sales"))),
     shopId: v.optional(v.id("shops")),
     shopCode: v.optional(v.string()),
+    staffId: v.optional(v.string()),
+    pin: v.optional(v.string()),
     allowedTabs: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
@@ -82,6 +86,8 @@ export const updateUser = mutation({
     if (updates.role !== undefined) patch.role = updates.role;
     if (updates.shopId !== undefined) patch.shopId = updates.shopId;
     if (updates.shopCode !== undefined) patch.shopCode = updates.shopCode;
+    if (updates.staffId !== undefined) patch.staffId = updates.staffId;
+    if (updates.pin !== undefined) patch.pin = updates.pin;
     if (updates.allowedTabs !== undefined) patch.allowedTabs = updates.allowedTabs;
 
     await ctx.db.patch(userId, patch);
@@ -90,8 +96,26 @@ export const updateUser = mutation({
 
 export const getUsers = query({
   handler: async (ctx) => {
-    return await ctx.db.query("users").collect();
+    // Mask passwords for safety when returning to client
+    const users = await ctx.db.query("users").collect();
+    return users.map(u => ({ ...u, password: "" }));
   },
+});
+
+export const getActiveStaff = query({
+  handler: async (ctx) => {
+    // Returns basic staff info plus PINs so mobile app can do offline PIN checks
+    const users = await ctx.db.query("users").collect();
+    return users.map(u => ({
+      _id: u._id,
+      name: u.name,
+      role: u.role,
+      staffId: u.staffId,
+      pin: u.pin,
+      shopId: u.shopId,
+      shopCode: u.shopCode
+    }));
+  }
 });
 
 export const deleteUser = mutation({
