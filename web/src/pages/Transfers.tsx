@@ -3,17 +3,16 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/convex/_generated/api";
 import { Clock, Truck, ArrowRight, Package } from 'lucide-react';
 
-export default function Transfers({ user }: { user: any }) {
-    const [selectedShopId, setSelectedShopId] = useState(user.shopId || "");
+export default function Transfers({ user, activeShopId }: { user: any, activeShopId: string }) {
     const allShops = useQuery(api.users.getShops);
-    const myShop = allShops?.find(s => s._id === (selectedShopId || user.shopId));
+    const myShop = allShops?.find(s => s._id === (activeShopId || user.shopId));
 
-    const pendingRequests = useQuery(api.transfers.getPendingRequests, { targetShopId: selectedShopId || undefined });
+    const pendingRequests = useQuery(api.transfers.getPendingRequests, { targetShopId: (activeShopId as any) || undefined });
     const regionalBroadcasts = useQuery(api.transfers.getRegionalBroadcasts,
         myShop ? { region: myShop.region, targetShopId: myShop._id } : "skip" as any
-    );
-    const inTransitOutgoing = useQuery(api.transfers.getOutgoingInTransit, { targetShopId: selectedShopId || undefined });
-    const incomingDeliveries = useQuery(api.transfers.getIncomingTransfers, { targetShopId: selectedShopId || undefined });
+    ) || [];
+    const inTransitOutgoing = useQuery(api.transfers.getOutgoingInTransit, { targetShopId: (activeShopId as any) || undefined });
+    const incomingDeliveries = useQuery(api.transfers.getIncomingTransfers, { targetShopId: (activeShopId as any) || undefined });
 
     const dispatchTransfer = useMutation(api.transfers.dispatchTransfer);
     const receiveTransfer = useMutation(api.transfers.receiveTransfer);
@@ -98,7 +97,6 @@ export default function Transfers({ user }: { user: any }) {
             setIsProcessing(false);
         }
     };
-
     return (
         <div className="p-8 pb-20 max-w-7xl mx-auto">
             <div className="flex justify-between items-center mb-10">
@@ -108,69 +106,55 @@ export default function Transfers({ user }: { user: any }) {
                     </div>
                     <div>
                         <h1 className="text-4xl font-black text-gray-900 tracking-tight">Stock Transfers</h1>
-                        <p className="text-gray-500 font-medium">Manage and track movements across your branches</p>
+                        <p className="text-gray-500 font-medium">Manage and track movements across {myShop?.name || 'your branches'}</p>
                     </div>
                 </div>
-
-                {user.role === 'admin' && (
-                    <div className="flex items-center space-x-3 bg-gray-50 p-2 rounded-2xl border border-gray-100">
-                        <span className="text-xs font-black text-gray-400 ml-2">VIEWING AS:</span>
-                        <select
-                            value={selectedShopId}
-                            onChange={(e) => setSelectedShopId(e.target.value)}
-                            className="px-4 py-2 border-0 bg-white text-gray-700 font-bold rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-black transition-all"
-                        >
-                            <option value="">Global (All Shops)</option>
-                            {allShops?.map(s => (
-                                <option key={s._id} value={s._id}>{s.name} ({s.code})</option>
-                            ))}
-                        </select>
-                    </div>
-                )}
             </div>
 
             {/* 1. Regional Broadcasts Section (For Sales/Managers to help others) */}
-            {user.role !== 'admin' && regionalBroadcasts && regionalBroadcasts.length > 0 && (
-                <div className="mb-12">
-                    <h2 className="text-xl font-bold mb-4 flex items-center text-orange-600">
-                        <Truck className="mr-2" size={24} />
-                        Regional Broadcasts (Help Other Shops)
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {regionalBroadcasts.map((r: any) => (
-                            <div key={r._id} className="bg-white rounded-2xl shadow-sm border-2 border-orange-100 p-6">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        <h3 className="text-lg font-bold">{r.productName}</h3>
-                                        <p className="text-sm text-gray-500">Requested by <strong>{r.toShopName}</strong></p>
+            {
+                user.role !== 'admin' && regionalBroadcasts && regionalBroadcasts.length > 0 && (
+                    <div className="mb-12">
+                        <h2 className="text-xl font-bold mb-4 flex items-center text-orange-600">
+                            <Truck className="mr-2" size={24} />
+                            Regional Broadcasts (Help Other Shops)
+                        </h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {regionalBroadcasts.map((r: any) => (
+                                <div key={r._id} className="bg-white rounded-2xl shadow-sm border-2 border-orange-100 p-6">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div>
+                                            <h3 className="text-lg font-bold">{r.productName}</h3>
+                                            <p className="text-sm text-gray-500">Requested by <strong>{r.toShopName}</strong></p>
+                                        </div>
+                                        <div className="text-2xl font-black text-orange-600">{r.quantity}</div>
                                     </div>
-                                    <div className="text-2xl font-black text-orange-600">{r.quantity}</div>
-                                </div>
-                                <div className="flex items-center justify-between mt-6">
-                                    <div className={`text-xs font-bold px-3 py-1 rounded-full ${r.isLowStock ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
-                                        {r.isLowStock ? "⚠️ LOW STOCK" : `✓ AVAILABLE (${r.myStock})`}
+                                    <div className="flex items-center justify-between mt-6">
+                                        <div className={`text-xs font-bold px-3 py-1 rounded-full ${r.isLowStock ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                                            {r.isLowStock ? "⚠️ LOW STOCK" : `✓ AVAILABLE (${r.myStock})`}
+                                        </div>
+                                        <button
+                                            disabled={r.isLowStock || isProcessing}
+                                            onClick={() => handleDispatch(r._id, user.shopId)}
+                                            className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${r.isLowStock
+                                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                                : 'bg-orange-600 text-white hover:bg-orange-700 shadow-md shadow-orange-100'}`}
+                                        >
+                                            CLAIM & DISPATCH
+                                        </button>
                                     </div>
-                                    <button
-                                        disabled={r.isLowStock || isProcessing}
-                                        onClick={() => handleDispatch(r._id, user.shopId)}
-                                        className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${r.isLowStock
-                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                            : 'bg-orange-600 text-white hover:bg-orange-700 shadow-md shadow-orange-100'}`}
-                                    >
-                                        CLAIM & DISPATCH
-                                    </button>
                                 </div>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* 2. Pending Tasks (To Dispatch) */}
             <div className="space-y-4">
                 <h2 className="text-xl font-bold flex items-center text-gray-800">
                     <Clock className="mr-2 text-blue-600" size={24} />
-                    {!selectedShopId ? "All Active Requests" : "Requests to Dispatch"}
+                    {!activeShopId ? "All Active Requests" : "Requests to Dispatch"}
                 </h2>
                 {pendingRequests?.length === 0 ? (
                     <div className="bg-white rounded-xl p-12 text-center border border-dashed border-gray-300">

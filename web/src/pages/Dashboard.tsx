@@ -4,10 +4,10 @@ import { Package, DollarSign, AlertTriangle, TrendingUp, ShoppingCart, Users, Ar
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, AreaChart, Area, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { useNavigate } from "react-router-dom";
 
-export default function Dashboard({ user }: { user: any }) {
+export default function Dashboard({ user, activeShopId }: { user: any, activeShopId: string }) {
   const navigate = useNavigate();
-  // Admin sees all shops, others see their assigned shop
-  const queryArgs = user.role === 'admin' ? {} : { shopId: user.shopId };
+  // We use the globally selected shop (from the sidebar)
+  const queryArgs = activeShopId ? { shopId: activeShopId as NonNullable<any> } : { shopId: user.shopId };
   const products = useQuery(api.products.getProductsForShop, queryArgs);
   const sales = useQuery(api.sales.getSalesForShop, queryArgs);
   const lowStock = useQuery(api.products.getLowStock, queryArgs);
@@ -119,7 +119,7 @@ export default function Dashboard({ user }: { user: any }) {
     <div className="p-8">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500">Welcome back, {user.name}. {user.role === 'admin' ? 'Viewing all shops.' : <>You are managing <strong>{user.shopCode}</strong>.</>}</p>
+        <p className="text-gray-500">Welcome back, {user.name}.</p>
       </div>
 
       {/* KPI Cards */}

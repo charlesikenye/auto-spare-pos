@@ -1,8 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Box, ShoppingCart, BarChart3, Users, LogOut, Truck } from 'lucide-react';
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/convex/_generated/api";
 
-export default function Sidebar({ user, onLogout }: { user: any, onLogout: () => void }) {
+export default function Sidebar({ user, onLogout, activeShopId, setActiveShopId }: { user: any, onLogout: () => void, activeShopId: string, setActiveShopId: (id: string) => void }) {
   const location = useLocation();
+  const shops = useQuery(api.users.getShops);
 
   let menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
@@ -30,8 +33,18 @@ export default function Sidebar({ user, onLogout }: { user: any, onLogout: () =>
   return (
     <div className="w-64 bg-white border-r min-h-screen flex flex-col">
       <div className="p-6 border-b">
-        <h1 className="text-xl font-bold text-blue-600">Auto Spares POS</h1>
-        <p className="text-sm text-gray-500">{user.shopCode} Shop</p>
+        <h1 className="text-xl font-bold text-blue-600 mb-2">Auto Spares POS</h1>
+        <select
+          value={activeShopId}
+          onChange={(e) => setActiveShopId(e.target.value)}
+          className="w-full bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 outline-none font-bold"
+        >
+          {shops?.map(shop => (
+            <option key={shop._id} value={shop._id}>
+              {shop.name} ({shop.code})
+            </option>
+          ))}
+        </select>
       </div>
       <nav className="flex-1 p-4 space-y-2">
         {menuItems.map((item) => (

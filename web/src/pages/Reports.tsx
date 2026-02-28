@@ -6,8 +6,8 @@ import { TrendingUp, Package, AlertTriangle, DollarSign, Download, MessageSquare
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
 
-export default function Reports({ user }: { user: any }) {
-  const queryArgs = user.role === 'admin' ? {} : { shopId: user.shopId };
+export default function Reports({ user, activeShopId }: { user: any, activeShopId: string }) {
+  const queryArgs = activeShopId ? { shopId: activeShopId as NonNullable<any> } : { shopId: user.shopId };
   const sales = useQuery(api.sales.getSalesForShop, queryArgs);
   const products = useQuery(api.products.getProductsForShop, queryArgs);
   const lowStock = useQuery(api.products.getLowStock, queryArgs);

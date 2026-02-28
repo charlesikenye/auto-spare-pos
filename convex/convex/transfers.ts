@@ -14,8 +14,7 @@ export const createRequest = mutation({
         requestedBy: v.id("users"),
     },
     handler: async (ctx, args) => {
-        const user = await verifyRole(ctx, args.callerId, ["sales", "manager", "admin"]);
-        const isAdmin = user.role === "admin";
+        await verifyRole(ctx, args.callerId, ["sales", "manager", "admin"]);
 
         return await ctx.db.insert("transfers", {
             productId: args.productId,
@@ -181,7 +180,7 @@ export const dispatchTransfer = mutation({
         fromShopId: v.optional(v.id("shops")) // Required for regional 'claiming'
     },
     handler: async (ctx, args) => {
-        const user = await verifyRole(ctx, args.callerId, ["sales", "manager", "admin"]);
+        await verifyRole(ctx, args.callerId, ["sales", "manager", "admin"]);
         const transfer = await ctx.db.get(args.transferId);
         if (!transfer) throw new Error("Transfer not found");
         if (transfer.status !== "pending") throw new Error("Transfer is not in a dispatchable state (must be 'pending').");

@@ -4,8 +4,8 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/convex/_generated/api";
 import { Search, ShoppingCart, Trash2, Plus, Minus, CheckCircle, Package, Clock } from 'lucide-react';
 
-export default function Sales({ user }: { user: any }) {
-  const queryArgs = user.role === 'admin' ? {} : { shopId: user.shopId };
+export default function Sales({ user, activeShopId }: { user: any, activeShopId: string }) {
+  const queryArgs = activeShopId ? { shopId: activeShopId as NonNullable<any> } : { shopId: user.shopId };
   const products = useQuery(api.products.getProductsForShop, queryArgs);
   const salesHistory = useQuery(api.sales.getSalesForShop, queryArgs);
   const createSale = useMutation(api.sales.createSale);
@@ -99,7 +99,7 @@ export default function Sales({ user }: { user: any }) {
 
       await createSale({
         callerId: user._id,
-        shopId: user.shopId,
+        shopId: activeShopId || user.shopId,
         userId: user._id,
         items: cart.map(i => ({ productId: i.productId, quantity: i.quantity, price: i.price })),
         total,

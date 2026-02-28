@@ -4,13 +4,12 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/convex/_generated/api";
 import { Plus, Search, AlertTriangle, X, Upload, Pencil, Package, ArrowRight } from 'lucide-react';
 
-export default function Inventory({ user }: { user: any }) {
+export default function Inventory({ user, activeShopId }: { user: any, activeShopId: string }) {
   const navigate = useNavigate();
-  const [selectedShopId, setSelectedShopId] = useState(user.shopId || "");
   const shops = useQuery(api.users.getShops);
 
   const products = useQuery(api.products.getProductsForShop, {
-    shopId: selectedShopId || undefined
+    shopId: (activeShopId as any) || undefined
   });
   const createProduct = useMutation(api.products.createProduct);
   const updateProduct = useMutation(api.products.updateProduct);
@@ -43,7 +42,7 @@ export default function Inventory({ user }: { user: any }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const targetShopId = selectedShopId || user.shopId;
+      const targetShopId = activeShopId || user.shopId;
       const targetShop = shops?.find(s => s._id === targetShopId);
 
       if (!targetShopId) {
@@ -118,7 +117,7 @@ export default function Inventory({ user }: { user: any }) {
   };
 
   const handleTransferRequest = async (sourceShop?: any, type: "intra_region" | "inter_region" = "intra_region") => {
-    const targetShopId = selectedShopId || user.shopId;
+    const targetShopId = activeShopId || user.shopId;
     const targetShop = shops?.find(s => s._id === targetShopId);
     if (!selectedProductForTransfer || !targetShop) return;
     try {
@@ -168,7 +167,7 @@ export default function Inventory({ user }: { user: any }) {
     }
   };
 
-  const targetShopId = selectedShopId || user.shopId;
+  const targetShopId = activeShopId || user.shopId;
   const targetShop = shops?.find(s => s._id === targetShopId);
   const regionalShops = shops?.filter(s => s._id !== targetShopId && s.region === targetShop?.region);
   const otherRegionShops = shops?.filter(s => s.region !== targetShop?.region);
@@ -189,21 +188,9 @@ export default function Inventory({ user }: { user: any }) {
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-2xl font-bold">Inventory Management</h1>
-          <p className="text-gray-500">Managing stock for {user.shopCode}</p>
+          <p className="text-gray-500">Managing stock for {targetShop?.name || user.shopCode}</p>
         </div>
         <div className="flex space-x-3">
-          {user.role === 'admin' && (
-            <select
-              value={selectedShopId}
-              onChange={(e) => setSelectedShopId(e.target.value)}
-              className="px-4 py-2 border rounded-lg bg-white text-gray-700 outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All Shops</option>
-              {shops?.map(s => (
-                <option key={s._id} value={s._id}>{s.name} ({s.code})</option>
-              ))}
-            </select>
-          )}
           <label className={`cursor-pointer px-4 py-2 rounded-lg border flex items-center space-x-2 transition-colors ${isImporting ? 'bg-gray-100 text-gray-400' : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300'}`}>
             <Upload size={20} />
             <span>{isImporting ? "Importing..." : "Bulk Import"}</span>
